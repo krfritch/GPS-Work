@@ -1,0 +1,336 @@
+---
+title: "GPS SOP"
+format: html
+code-fold: true
+code-block-border-left: true
+highlight-style: pygments
+execute: 
+  error: true
+  echo: true
+  eval: false
+---
+
+## Introduction
+
+This is an SOP for collecting and managing GPS tracks in the field for CCFRP. The way this file is structured is so that the majority of the code is written into functions that do not need any altering. In order to make your data run through this script just change the names of the files to match your files and name the objects you create in the way that makes the most sense. Areas that need to be re-named will follow a similar format: INSERT_DATA_NAME_HERE. 
+
+This SOP will take the GPS tracks from CCFRP trips and merge them with the time stamps taken with fish in the field. In order to do this, you will need to have all of your GPS tracks downloaded to your computer in the form of .gpx files, there should be one .gpx file for every field day. The CCFRP data for the season you are working on downloaded in the form of a .csv. For more information on the structure the CCFRP data should be in see the section **Preparing the CCFRP Data**. This section will specify what columns should be pulled from the access database and how to name them.  
+
+1. Installing the Necessary Packages
+
+```{r Setup}
+#| code-summary: Setup
+library(tidyverse) #for data management 
+library(zoo) #for an.approx function
+library(hms) #for the as_hms function
+library(XML) #reading and extracting data from the .gpx files
+
+#this will ensure that all the gps coordinate decimals points are shown
+options(digits = 8)
+
+```
+
+
+## Taking Time Stamps in the Field
+
+::: {.callout-note}
+These instructions are for a Garmin GPS 73. 
+:::
+
+1. At the start of the day turn the unit on and go to setup > track manager > set interval to every 15 seconds and recording on the map.
+
+2. Throughout the field day write the time in 12hr HH:MM:SS in the comments section next to as many caught fish as possible.
+
+3. At the end of the day go to track manager > save tracks for the day, leave the file named with the date.
+
+## Downloading the GPS Tracks 
+
+After the field day it is important to download the tracks to a computer so they do not get lost. 
+
+1. Plug the GPS unit you used in the field into your computer. 
+
+2. Copy the .gpx file named with the date you are downloading to your personal computer. 
+
+## Managing the GPS Tracks 
+
+::: {.callout-warning}
+When extracting the data from the gpx files each date should be ran individually. This is important for a step later in the code. 
+:::
+
+1. Read in the data and extract the important variables (coordinates and time):
+
+Here you are going to create a new object for each of your .gpx files, replace "INSERT GPS FILE NAME HERE" with the name of each .gpx file and rename each object from INSERT_DATA_NAME_HERE to a name that will make sense to you for later use in the document. 
+
+
+```{r Read in GPS data}
+#| code-summary: Read in GPS Data
+
+extractgpx <- function(gpsfilename){
+  
+  gpx <- htmlTreeParse(file = gpsfilename, 
+                            useInternalNodes = TRUE)
+  
+  #getting the coordinates
+  coords <- xpathSApply(doc = gpx, path = "//trkpt", fun = xmlAttrs)
+  
+  #getting the time
+  gpstime <- xpathSApply(doc = gpx, path = "//trkpt/time", fun = xmlValue)
+  
+  #putting the time into date-time structure
+  gpstime_r <- strptime(gpstime[1], "%Y-%m-%dT%H:%M:%SZ")
+  
+  #formatting into correct timezone
+  gpstime_r <- as.POSIXct(gpstime, format = "%Y-%m-%dT%H:%M:%SZ", tz = 'UTC')
+  
+  attr(gpstime_r, 'tzone') <- 'America/Los_Angeles'
+  
+  #binding the data into a dataframe with new column names
+  gps <- data.frame(
+  lat = as.numeric(coords["lat", ]),
+  lon = as.numeric(coords["lon", ]),
+  date_time = gpstime_r) %>%
+  mutate(date = date(date_time), 
+         time = str_extract(date_time, "[0-9]{2}:[0-9]{2}:[0-9]{2}"))
+  
+  return(gps)}
+
+
+#make sure to create a new date object for each individual GPS file date you read in 
+
+INSERT_DATA_NAME_HERE1 <- extractgpx("INSERT GPS FILE NAME HERE.gpx")
+
+INSERT_DATA_NAME_HERE2 <- extractgpx("INSERT GPS FILE NAME HERE.gpx")
+
+INSERT_DATA_NAME_HERE3 <- extractgpx("INSERT GPS FILE NAME HERE.gpx")
+
+```
+
+## Connecting the GPS Tracks and CCFRP Data
+
+**Cleaning and Binding the GPS Data**
+
+1. Before we can bind all the GPS files we need to filter to make sure that each file only contains the correct date. In order to do this we are going to take each of the GPS files that were read in above and filter the date column to only include one date. This is important to do because sometimes the GPS stores the tracks for more than one date in a file. If there is more than one date stored in a file the code will be unable to match the GPS tracks with the fish data. 
+
+```{r Cleaning GPS Files}
+#| code-summary: Cleaning GPS Files
+
+#Repeat for every date you have
+INSERT_DATA_NAME_HERE1 <- INSERT_DATA_NAME_HERE1 %>%
+  filter(date == "INSERT DATE HERE")
+
+INSERT_DATA_NAME_HERE2 <- INSERT_DATA_NAME_HERE2 %>%
+  filter(date == "INSERT DATE HERE")
+
+INSERT_DATA_NAME_HERE3 <- INSERT_DATA_NAME_HERE3 %>%
+  filter(date == "INSERT DATE HERE")
+
+```
+
+2. Now that they have been filtered to only include the correct date, bind all the GPS files into one data set. In order to do this, you are going to create a list with all of the objects you created in the code chunk above. Once you have created this list, you are going to feed that list to a function called `bindgps`. 
+This function does a few different things: 
+    (a) It rounds the time to the nearest 15 seconds so that it will match a            time in the CCFRP data
+    (b) It converts the 24hr time to be in 12hr format to match with a time in 
+        the CCFRP data
+    (c) It creates a column called `date_rdtime` that combines the rounded time           and the date, this will be the joining column in the GPS and CCFRP data
+
+```{r Binding the GPS Files}
+#| code-summary: Binding the GPS Files
+
+bindgps <- function(listname){
+  
+  gps_tracks <- bind_rows(listname) %>%
+    mutate(time = as_hms(time), 
+           date = as_date(date)) %>%
+    mutate(round_time = round_hms(time, secs = 15)) %>%
+    mutate(round_time = as.numeric(str_remove_all(round_time, ":")),
+           round_time = if_else(
+             condition = round_time >= 130000 & round_time < 140000, 
+             true = round_time - 120000,
+             false = round_time),
+           round_time = if_else(
+             condition = round_time >= 140000, 
+             true = round_time - 120000, 
+             false = round_time),
+           round_time = gsub("(\\d\\d)(\\d\\d)(\\d\\d)", 
+                             "\\1:\\2:\\3",
+                             round_time), 
+           round_time = gsub("(\\d)(\\d\\d)(\\d\\d)", 
+                             "\\0\\1:\\2:\\3", 
+                             round_time)) %>%
+    unite("date_rdtime", date, round_time, sep = "_")
+  
+  return(gps_tracks)}
+
+#include all the dates you have
+INSERT_LIST_NAME_HERE <- list(INSERT_DATA_NAME_HERE1, INSERT_DATA_NAME_HERE2, 
+                 INSERT_DATA_NAME_HERE3)
+
+INSERT_GPS_DATA_NAME_HERE <- bindgps(INSERT_LIST_NAME_HERE)
+
+```
+
+**Preparing the CCFRP Data**
+
+Now we are going to get the CCFRP data ready to join with the GPS data.
+
+3. Export the CCFRP data for the whole season you are working on including the following columns: Trip ID, Area, Year Automatic, Drift ID, Start Time, End Time, Start latitude, Start Longitude, End latitude, End longitude, Fish ID, Species, Fork Length, Lat released, Lon released and Comments. 
+
+4. Then export the query to an excel file and be sure to keep the source formatting when exporting. 
+
+5. Once the file is exported, save it as a csv file and be sure to rename the columns to match the following format: `tripid`, `area`, `year`, `driftid`, `st_time`, `end_time`, `st_lat`, `st_lon`, `end_lat`, `end_lon`, `fishid`, `species`, `fork`, `waypoint_lat`, `waypoint_lon`, and `comments.` 
+
+6. Now we can read in the CCFRP data and clean it to bind with the GPS data using the function below. In order to do this replace "INSERT CCFRP FILE NAME HERE" with the name of your csv file that contains the CCFRP data and change the object name from INSERT_CCFRP_DATA_NAME_HERE to a name that will make sense to you for later use in the document. 
+This function does a few different things:
+    (a) It reads in the data
+    (b) It creates a date column 
+    (c) It extracts the time from the comments section 
+    (d) It rounds the time to the nearest 15 seconds to match a time in the GPS         data
+    (e) It creates a column called `date_rdtime` that combines the rounded time           and the date, this will be the joining column in the GPS and CCFRP data
+
+```{r Read in CCFRP Data}
+#| code-summary: Read in CCFRP Data
+
+cleanfish <- function(ccfrpfilename){
+  
+  ccfrpdat <- read.csv(ccfrpfilename)
+  
+  ccfrpdat <- ccfrpdat %>%
+    mutate(date = str_extract(driftid, pattern = "\\d\\d\\d\\d\\d\\d"), 
+           date = mdy(date)) %>%
+    mutate(twodighour = str_extract(comments, 
+                                    pattern ="\\d\\d\\:\\d\\d:\\d\\d"),
+           onedighour = str_extract(comments, 
+                                    pattern = "\\d\\:\\d\\d:\\d\\d")) %>%
+    mutate(time = if_else(
+      condition = is.na(twodighour),
+      true = onedighour, 
+      false = twodighour)) %>%
+    select(-c(onedighour, twodighour)) %>%
+    mutate(time = as_hms(time)) %>%
+    mutate(round_time = round_hms(time, secs = 15)) %>%
+    unite("date_rdtime", date, round_time, sep = "_")
+  
+  return(ccfrpdat)}
+
+INSERT_CCFRP_DATA_NAME_HERE <- cleanfish("INSERT CCFRP FILE NAME HERE.csv")
+
+```
+
+**Joining the CCFRP and GPS Data**
+
+7. Now we are going to join the CCFRP and the GPS data together using the `date_rdtime` column. In order to do this take the CCFRP data object you created in the code chunk above, and the GPS object you created in step 2 and feed them into the function `join`. Make sure to rename this object to something that will make sense to you for future use in the document. 
+
+```{r Joining the Data}
+#| code-summary: Joining the Data
+
+join <- function(ccfrpdata, gpsdata){
+  
+  final <- left_join(ccfrpdata, gpsdata, 
+                                   by = "date_rdtime") %>%
+    select(-c("date_time")) %>%
+    separate_wider_delim(date_rdtime, delim = "_", 
+                         names = c("date", "round_time")) %>%
+    rename(gps_lat = lat, 
+           gps_lon = lon)
+  
+  return(final)}
+
+INSERT_FINAL_DATA_NAME_HERE <- join(INSERT_CCFRP_DATA_NAME_HERE, 
+                                    INSERT_GPS_DATA_NAME_HERE)
+
+
+```
+
+
+## Getting a GPS Coordinate for Every Fish 
+
+Now that we have the GPS coordinates for all the fish with time stamps, we are going to give the remaining fish approximate locations by dividing them evenly between the GPS waypoints. 
+
+1. Before we can do that we first need to clear any places where the end coordinates for the drift are in the file before the last fish and sort the data to ensure that it is in the correct order. In order to do this, you are going to feed the new joined object you created in the step above into a function called `sort.prep`. 
+
+```{r Sorting and Prepping the CCFRP Data}
+#| code-summary: Sorting and Prepping the CCFRP Data
+
+sort.prep <- function(joineddata){
+  
+  final <- arrange(joineddata, 
+                   driftid,
+                   fishid) %>% 
+    mutate(gps_lat = if_else(condition = gps_lat == end_lat 
+                             & gps_lon == end_lon, 
+                             true = NA, 
+                             false = gps_lat),
+           gps_lon = if_else(condition = gps_lat == end_lat 
+                             & gps_lon == end_lon, 
+                             true = NA, 
+                             false = gps_lon))
+  
+  return(final)}
+
+INSERT_FINAL_DATA_NAME_HERE <- sort.prep(INSERT_FINAL_DATA_NAME_HERE)
+
+```
+
+2. Now we are going to run the data in a loop that will assign each fish an approximate waypoint by dividing them evenly along the drift. It will assign the first and last fish in each drift the start and end coordinates respectively if they do not already have waypoints and it will divide the remaining fish between those and any intermediate GPS coordinates. In order to do this, you first need to create an object that lists out every unique driftid in the CCFRP data. You can do this by replacing INSERT_FINAL_DATA_NAME_HERE with the name of the object you created in the code chunk above. 
+
+```{r Approximate Locations}
+#| code-summary: Getting Approximate Locations
+
+#getting each unique driftid 
+unique_drift <- unique(INSERT_FINAL_DATA_NAME_HERE$driftid)
+
+if(exists('alldata')==T){rm(alldata)}
+
+for(drift in unique_drift){
+  
+  tempdrift <- finaltest %>% 
+    filter(driftid == drift) %>%
+    mutate(fishlat = gps_lat, 
+           fishlon = gps_lon)
+  
+  l <- nrow(tempdrift)
+  
+  # adding the start lat and long or end lat and lon in cases where the start       and end fish have no waypoint
+  
+  tempdrift$fishlat[1] <- if_else(is.na(tempdrift$fishlat[1]),
+                                  tempdrift$st_lat[1], 
+                                  tempdrift$fishlat[1])
+  
+  tempdrift$fishlon[1] <- if_else(is.na(tempdrift$fishlon[1]),
+                                  tempdrift$st_lon[1], 
+                                  tempdrift$fishlon[1])
+  
+  tempdrift$fishlat[l] <- if_else(is.na(tempdrift$fishlat[l]),
+                                  tempdrift$end_lat[l], 
+                                  tempdrift$fishlat[l])
+  
+  tempdrift$fishlon[l] <- if_else(is.na(tempdrift$fishlon[l]),
+                                  tempdrift$end_lon[l], 
+                                  tempdrift$fishlon[l])
+  
+  ##evenly dividing waypoints across fish on a drift
+  
+  gps_approx <- tempdrift %>%
+    mutate(approx_lat = na.approx(fishlat),
+           approx_lon = na.approx(fishlon))
+  
+  if(exists('driftgps')==T){driftgps <- rbind(driftgps, gps_approx)}
+  if(exists('driftgps')==F){driftgps <- gps_approx}
+  
+  FINAL_DATA_NAME_HERE <- driftgps
+  FINAL_DATA_NAME_HERE$fishlat <- NULL
+  FINAL_DATA_NAME_HERE$fishlon <- NULL}
+
+```
+
+## Exporting the final data
+
+Now everything is done and we are ready to export the final dataset to a .csv file. 
+
+```{r Exporting Data}
+#| code-summary: Exporting the Data
+
+write.csv(FINAL_DATA_NAME_HERE, file = "FINAL_DATA_FILE_NAME_HERE.csv")
+
+```
+
