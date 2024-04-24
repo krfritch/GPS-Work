@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.306">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>GPS-SOP</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="GPS-SOP_files/libs/clipboard/clipboard.min.js"></script>
+<script src="GPS-SOP_files/libs/quarto-html/quarto.js"></script>
+<script src="GPS-SOP_files/libs/quarto-html/popper.min.js"></script>
+<script src="GPS-SOP_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="GPS-SOP_files/libs/quarto-html/anchor.min.js"></script>
+<link href="GPS-SOP_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="GPS-SOP_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="GPS-SOP_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="GPS-SOP_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="GPS-SOP_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">GPS-SOP</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This is an SOP for collecting and managing GPS tracks in the field for CCFRP. The way this file is structured is so that the majority of the code is written into functions that do not need any altering. In order to make your data run through this script just change the names of the files to match your files and name the objects you create in the way that makes the most sense. Areas that need to be re-named will follow a similar format: INSERT_DATA_NAME_HERE.</p>
+<p>This SOP will take the GPS tracks from CCFRP trips and merge them with the time stamps taken with fish in the field. In order to do this, you will need to have all of your GPS tracks downloaded to your computer in the form of .gpx files, there should be one .gpx file for every field day. The CCFRP data for the season you are working on downloaded in the form of a .csv. For more information on the structure the CCFRP data should be in see the section <strong>Preparing the CCFRP Data</strong>. This section will specify what columns should be pulled from the access database and how to name them.</p>
+<ol type="1">
+<li>Installing the Necessary Packages</li>
+</ol>
+<div class="cell">
+<details>
+<summary>Setup</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse) <span class="co">#for data management </span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(zoo) <span class="co">#for an.approx function</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(hms) <span class="co">#for the as_hms function</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(XML) <span class="co">#reading and extracting data from the .gpx files</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">#this will ensure that all the gps coordinate decimals points are shown</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">digits =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="taking-time-stamps-in-the-field" class="level2">
+<h2 class="anchored" data-anchor-id="taking-time-stamps-in-the-field">Taking Time Stamps in the Field</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>These instructions are for a Garmin GPS 73.</p>
+</div>
+</div>
+<ol type="1">
+<li><p>At the start of the day turn the unit on and go to setup &gt; track manager &gt; set interval to every 15 seconds and recording on the map.</p></li>
+<li><p>Throughout the field day write the time in 12hr HH:MM:SS in the comments section next to as many caught fish as possible.</p></li>
+<li><p>At the end of the day go to track manager &gt; save tracks for the day, leave the file named with the date.</p></li>
+</ol>
+</section>
+<section id="downloading-the-gps-tracks" class="level2">
+<h2 class="anchored" data-anchor-id="downloading-the-gps-tracks">Downloading the GPS Tracks</h2>
+<p>After the field day it is important to download the tracks to a computer so they do not get lost.</p>
+<ol type="1">
+<li><p>Plug the GPS unit you used in the field into your computer.</p></li>
+<li><p>Copy the .gpx file named with the date you are downloading to your personal computer.</p></li>
+</ol>
+</section>
+<section id="managing-the-gps-tracks" class="level2">
+<h2 class="anchored" data-anchor-id="managing-the-gps-tracks">Managing the GPS Tracks</h2>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Warning
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When extracting the data from the gpx files each date should be ran individually. This is important for a step later in the code.</p>
+</div>
+</div>
+<ol type="1">
+<li>Read in the data and extract the important variables (coordinates and time):</li>
+</ol>
+<p>Here you are going to create a new object for each of your .gpx files, replace “INSERT GPS FILE NAME HERE” with the name of each .gpx file and rename each object from INSERT_DATA_NAME_HERE to a name that will make sense to you for later use in the document.</p>
+<div class="cell">
+<details>
+<summary>Read in GPS Data</summary>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>extractgpx <span class="ot">&lt;-</span> <span class="cf">function</span>(gpsfilename){</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  gpx <span class="ot">&lt;-</span> <span class="fu">htmlTreeParse</span>(<span class="at">file =</span> gpsfilename, </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                            <span class="at">useInternalNodes =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">#getting the coordinates</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  coords <span class="ot">&lt;-</span> <span class="fu">xpathSApply</span>(<span class="at">doc =</span> gpx, <span class="at">path =</span> <span class="st">"//trkpt"</span>, <span class="at">fun =</span> xmlAttrs)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="co">#getting the time</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  gpstime <span class="ot">&lt;-</span> <span class="fu">xpathSApply</span>(<span class="at">doc =</span> gpx, <span class="at">path =</span> <span class="st">"//trkpt/time"</span>, <span class="at">fun =</span> xmlValue)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">#putting the time into date-time structure</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  gpstime_r <span class="ot">&lt;-</span> <span class="fu">strptime</span>(gpstime[<span class="dv">1</span>], <span class="st">"%Y-%m-%dT%H:%M:%SZ"</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">#formatting into correct timezone</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  gpstime_r <span class="ot">&lt;-</span> <span class="fu">as.POSIXct</span>(gpstime, <span class="at">format =</span> <span class="st">"%Y-%m-%dT%H:%M:%SZ"</span>, <span class="at">tz =</span> <span class="st">'UTC'</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">attr</span>(gpstime_r, <span class="st">'tzone'</span>) <span class="ot">&lt;-</span> <span class="st">'America/Los_Angeles'</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">#binding the data into a dataframe with new column names</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  gps <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">lat =</span> <span class="fu">as.numeric</span>(coords[<span class="st">"lat"</span>, ]),</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">lon =</span> <span class="fu">as.numeric</span>(coords[<span class="st">"lon"</span>, ]),</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">date_time =</span> gpstime_r) <span class="sc">%&gt;%</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">date</span>(date_time), </span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>         <span class="at">time =</span> <span class="fu">str_extract</span>(date_time, <span class="st">"[0-9]{2}:[0-9]{2}:[0-9]{2}"</span>))</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(gps)}</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co">#make sure to create a new date object for each individual GPS file date you read in </span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE1 <span class="ot">&lt;-</span> <span class="fu">extractgpx</span>(<span class="st">"INSERT GPS FILE NAME HERE.gpx"</span>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE2 <span class="ot">&lt;-</span> <span class="fu">extractgpx</span>(<span class="st">"INSERT GPS FILE NAME HERE.gpx"</span>)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE3 <span class="ot">&lt;-</span> <span class="fu">extractgpx</span>(<span class="st">"INSERT GPS FILE NAME HERE.gpx"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="connecting-the-gps-tracks-and-ccfrp-data" class="level2">
+<h2 class="anchored" data-anchor-id="connecting-the-gps-tracks-and-ccfrp-data">Connecting the GPS Tracks and CCFRP Data</h2>
+<p><strong>Cleaning and Binding the GPS Data</strong></p>
+<ol type="1">
+<li>Before we can bind all the GPS files we need to filter to make sure that each file only contains the correct date. In order to do this we are going to take each of the GPS files that were read in above and filter the date column to only include one date. This is important to do because sometimes the GPS stores the tracks for more than one date in a file. If there is more than one date stored in a file the code will be unable to match the GPS tracks with the fish data.</li>
+</ol>
+<div class="cell">
+<details>
+<summary>Cleaning GPS Files</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Repeat for every date you have</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE1 <span class="ot">&lt;-</span> INSERT_DATA_NAME_HERE1 <span class="sc">%&gt;%</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date <span class="sc">==</span> <span class="st">"INSERT DATE HERE"</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE2 <span class="ot">&lt;-</span> INSERT_DATA_NAME_HERE2 <span class="sc">%&gt;%</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date <span class="sc">==</span> <span class="st">"INSERT DATE HERE"</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>INSERT_DATA_NAME_HERE3 <span class="ot">&lt;-</span> INSERT_DATA_NAME_HERE3 <span class="sc">%&gt;%</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date <span class="sc">==</span> <span class="st">"INSERT DATE HERE"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<ol start="2" type="1">
+<li>Now that they have been filtered to only include the correct date, bind all the GPS files into one data set. In order to do this, you are going to create a list with all of the objects you created in the code chunk above. Once you have created this list, you are going to feed that list to a function called <code>bindgps</code>. This function does a few different things:
+<ol type="a">
+<li>It rounds the time to the nearest 15 seconds so that it will match a time in the CCFRP data</li>
+<li>It converts the 24hr time to be in 12hr format to match with a time in the CCFRP data</li>
+<li>It creates a column called <code>date_rdtime</code> that combines the rounded time and the date, this will be the joining column in the GPS and CCFRP data</li>
+</ol></li>
+</ol>
+<div class="cell">
+<details>
+<summary>Binding the GPS Files</summary>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>bindgps <span class="ot">&lt;-</span> <span class="cf">function</span>(listname){</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  gps_tracks <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(listname) <span class="sc">%&gt;%</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">time =</span> <span class="fu">as_hms</span>(time), </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>           <span class="at">date =</span> <span class="fu">as_date</span>(date)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">round_time =</span> <span class="fu">round_hms</span>(time, <span class="at">secs =</span> <span class="dv">15</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">round_time =</span> <span class="fu">as.numeric</span>(<span class="fu">str_remove_all</span>(round_time, <span class="st">":"</span>)),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>           <span class="at">round_time =</span> <span class="fu">if_else</span>(</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>             <span class="at">condition =</span> round_time <span class="sc">&gt;=</span> <span class="dv">130000</span> <span class="sc">&amp;</span> round_time <span class="sc">&lt;</span> <span class="dv">140000</span>, </span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>             <span class="at">true =</span> round_time <span class="sc">-</span> <span class="dv">120000</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>             <span class="at">false =</span> round_time),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>           <span class="at">round_time =</span> <span class="fu">if_else</span>(</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>             <span class="at">condition =</span> round_time <span class="sc">&gt;=</span> <span class="dv">140000</span>, </span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>             <span class="at">true =</span> round_time <span class="sc">-</span> <span class="dv">120000</span>, </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>             <span class="at">false =</span> round_time),</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>           <span class="at">round_time =</span> <span class="fu">gsub</span>(<span class="st">"(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)"</span>, </span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                             <span class="st">"</span><span class="sc">\\</span><span class="st">1:</span><span class="sc">\\</span><span class="st">2:</span><span class="sc">\\</span><span class="st">3"</span>,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>                             round_time), </span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>           <span class="at">round_time =</span> <span class="fu">gsub</span>(<span class="st">"(</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)"</span>, </span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>                             <span class="st">"</span><span class="sc">\\</span><span class="st">0</span><span class="sc">\\</span><span class="st">1:</span><span class="sc">\\</span><span class="st">2:</span><span class="sc">\\</span><span class="st">3"</span>, </span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>                             round_time)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unite</span>(<span class="st">"date_rdtime"</span>, date, round_time, <span class="at">sep =</span> <span class="st">"_"</span>)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(gps_tracks)}</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co">#include all the dates you have</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>INSERT_LIST_NAME_HERE <span class="ot">&lt;-</span> <span class="fu">list</span>(INSERT_DATA_NAME_HERE1, INSERT_DATA_NAME_HERE2, </span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>                 INSERT_DATA_NAME_HERE3)</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>INSERT_GPS_DATA_NAME_HERE <span class="ot">&lt;-</span> <span class="fu">bindgps</span>(INSERT_LIST_NAME_HERE)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p><strong>Preparing the CCFRP Data</strong></p>
+<p>Now we are going to get the CCFRP data ready to join with the GPS data.</p>
+<ol start="3" type="1">
+<li><p>Export the CCFRP data for the whole season you are working on including the following columns: Trip ID, Area, Year Automatic, Drift ID, Start Time, End Time, Start latitude, Start Longitude, End latitude, End longitude, Fish ID, Species, Fork Length, Lat released, Lon released and Comments.</p></li>
+<li><p>Then export the query to an excel file and be sure to keep the source formatting when exporting.</p></li>
+<li><p>Once the file is exported, save it as a csv file and be sure to rename the columns to match the following format: <code>tripid</code>, <code>area</code>, <code>year</code>, <code>driftid</code>, <code>st_time</code>, <code>end_time</code>, <code>st_lat</code>, <code>st_lon</code>, <code>end_lat</code>, <code>end_lon</code>, <code>fishid</code>, <code>species</code>, <code>fork</code>, <code>waypoint_lat</code>, <code>waypoint_lon</code>, and <code>comments.</code></p></li>
+<li><p>Now we can read in the CCFRP data and clean it to bind with the GPS data using the function below. In order to do this replace “INSERT CCFRP FILE NAME HERE” with the name of your csv file that contains the CCFRP data and change the object name from INSERT_CCFRP_DATA_NAME_HERE to a name that will make sense to you for later use in the document. This function does a few different things:</p>
+<ol type="a">
+<li>It reads in the data</li>
+<li>It creates a date column</li>
+<li>It extracts the time from the comments section</li>
+<li>It rounds the time to the nearest 15 seconds to match a time in the GPS data</li>
+<li>It creates a column called <code>date_rdtime</code> that combines the rounded time and the date, this will be the joining column in the GPS and CCFRP data</li>
+</ol></li>
+</ol>
+<div class="cell">
+<details>
+<summary>Read in CCFRP Data</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>cleanfish <span class="ot">&lt;-</span> <span class="cf">function</span>(ccfrpfilename){</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  ccfrpdat <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(ccfrpfilename)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  ccfrpdat <span class="ot">&lt;-</span> ccfrpdat <span class="sc">%&gt;%</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">str_extract</span>(driftid, <span class="at">pattern =</span> <span class="st">"</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d"</span>), </span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>           <span class="at">date =</span> <span class="fu">mdy</span>(date)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">twodighour =</span> <span class="fu">str_extract</span>(comments, </span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">pattern =</span><span class="st">"</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">:</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d:</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d"</span>),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>           <span class="at">onedighour =</span> <span class="fu">str_extract</span>(comments, </span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">pattern =</span> <span class="st">"</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">:</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d:</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">time =</span> <span class="fu">if_else</span>(</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>      <span class="at">condition =</span> <span class="fu">is.na</span>(twodighour),</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>      <span class="at">true =</span> onedighour, </span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>      <span class="at">false =</span> twodighour)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(onedighour, twodighour)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">time =</span> <span class="fu">as_hms</span>(time)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">round_time =</span> <span class="fu">round_hms</span>(time, <span class="at">secs =</span> <span class="dv">15</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unite</span>(<span class="st">"date_rdtime"</span>, date, round_time, <span class="at">sep =</span> <span class="st">"_"</span>)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(ccfrpdat)}</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>INSERT_CCFRP_DATA_NAME_HERE <span class="ot">&lt;-</span> <span class="fu">cleanfish</span>(<span class="st">"INSERT CCFRP FILE NAME HERE.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p><strong>Joining the CCFRP and GPS Data</strong></p>
+<ol start="7" type="1">
+<li>Now we are going to join the CCFRP and the GPS data together using the <code>date_rdtime</code> column. In order to do this take the CCFRP data object you created in the code chunk above, and the GPS object you created in step 2 and feed them into the function <code>join</code>. Make sure to rename this object to something that will make sense to you for future use in the document.</li>
+</ol>
+<div class="cell">
+<details>
+<summary>Joining the Data</summary>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>join <span class="ot">&lt;-</span> <span class="cf">function</span>(ccfrpdata, gpsdata){</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  final <span class="ot">&lt;-</span> <span class="fu">left_join</span>(ccfrpdata, gpsdata, </span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>                                   <span class="at">by =</span> <span class="st">"date_rdtime"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(<span class="st">"date_time"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">separate_wider_delim</span>(date_rdtime, <span class="at">delim =</span> <span class="st">"_"</span>, </span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>                         <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"date"</span>, <span class="st">"round_time"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rename</span>(<span class="at">gps_lat =</span> lat, </span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>           <span class="at">gps_lon =</span> lon)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(final)}</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>INSERT_FINAL_DATA_NAME_HERE <span class="ot">&lt;-</span> <span class="fu">join</span>(INSERT_CCFRP_DATA_NAME_HERE, </span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>                                    INSERT_GPS_DATA_NAME_HERE)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="getting-a-gps-coordinate-for-every-fish" class="level2">
+<h2 class="anchored" data-anchor-id="getting-a-gps-coordinate-for-every-fish">Getting a GPS Coordinate for Every Fish</h2>
+<p>Now that we have the GPS coordinates for all the fish with time stamps, we are going to give the remaining fish approximate locations by dividing them evenly between the GPS waypoints.</p>
+<ol type="1">
+<li>Before we can do that we first need to clear any places where the end coordinates for the drift are in the file before the last fish and sort the data to ensure that it is in the correct order. In order to do this, you are going to feed the new joined object you created in the step above into a function called <code>sort.prep</code>.</li>
+</ol>
+<div class="cell">
+<details>
+<summary>Sorting and Prepping the CCFRP Data</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>sort.prep <span class="ot">&lt;-</span> <span class="cf">function</span>(joineddata){</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  final <span class="ot">&lt;-</span> <span class="fu">arrange</span>(joineddata, </span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>                   driftid,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>                   fishid) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">gps_lat =</span> <span class="fu">if_else</span>(<span class="at">condition =</span> gps_lat <span class="sc">==</span> end_lat </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>                             <span class="sc">&amp;</span> gps_lon <span class="sc">==</span> end_lon, </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>                             <span class="at">true =</span> <span class="cn">NA</span>, </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>                             <span class="at">false =</span> gps_lat),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>           <span class="at">gps_lon =</span> <span class="fu">if_else</span>(<span class="at">condition =</span> gps_lat <span class="sc">==</span> end_lat </span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>                             <span class="sc">&amp;</span> gps_lon <span class="sc">==</span> end_lon, </span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>                             <span class="at">true =</span> <span class="cn">NA</span>, </span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>                             <span class="at">false =</span> gps_lon))</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(final)}</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>INSERT_FINAL_DATA_NAME_HERE <span class="ot">&lt;-</span> <span class="fu">sort.prep</span>(INSERT_FINAL_DATA_NAME_HERE)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<ol start="2" type="1">
+<li>Now we are going to run the data in a loop that will assign each fish an approximate waypoint by dividing them evenly along the drift. It will assign the first and last fish in each drift the start and end coordinates respectively if they do not already have waypoints and it will divide the remaining fish between those and any intermediate GPS coordinates. In order to do this, you first need to create an object that lists out every unique driftid in the CCFRP data. You can do this by replacing INSERT_FINAL_DATA_NAME_HERE with the name of the object you created in the code chunk above.</li>
+</ol>
+<div class="cell">
+<details>
+<summary>Getting Approximate Locations</summary>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">#getting each unique driftid </span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>unique_drift <span class="ot">&lt;-</span> <span class="fu">unique</span>(INSERT_FINAL_DATA_NAME_HERE<span class="sc">$</span>driftid)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span>(<span class="fu">exists</span>(<span class="st">'alldata'</span>)<span class="sc">==</span>T){<span class="fu">rm</span>(alldata)}</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(drift <span class="cf">in</span> unique_drift){</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  tempdrift <span class="ot">&lt;-</span> finaltest <span class="sc">%&gt;%</span> </span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(driftid <span class="sc">==</span> drift) <span class="sc">%&gt;%</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">fishlat =</span> gps_lat, </span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>           <span class="at">fishlon =</span> gps_lon)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  l <span class="ot">&lt;-</span> <span class="fu">nrow</span>(tempdrift)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  <span class="co"># adding the start lat and long or end lat and lon in cases where the start       and end fish have no waypoint</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  tempdrift<span class="sc">$</span>fishlat[<span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(tempdrift<span class="sc">$</span>fishlat[<span class="dv">1</span>]),</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>st_lat[<span class="dv">1</span>], </span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>fishlat[<span class="dv">1</span>])</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  tempdrift<span class="sc">$</span>fishlon[<span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(tempdrift<span class="sc">$</span>fishlon[<span class="dv">1</span>]),</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>st_lon[<span class="dv">1</span>], </span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>fishlon[<span class="dv">1</span>])</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  tempdrift<span class="sc">$</span>fishlat[l] <span class="ot">&lt;-</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(tempdrift<span class="sc">$</span>fishlat[l]),</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>end_lat[l], </span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>fishlat[l])</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>  tempdrift<span class="sc">$</span>fishlon[l] <span class="ot">&lt;-</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(tempdrift<span class="sc">$</span>fishlon[l]),</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>end_lon[l], </span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>                                  tempdrift<span class="sc">$</span>fishlon[l])</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>  <span class="do">##evenly dividing waypoints across fish on a drift</span></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>  gps_approx <span class="ot">&lt;-</span> tempdrift <span class="sc">%&gt;%</span></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">approx_lat =</span> <span class="fu">na.approx</span>(fishlat),</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>           <span class="at">approx_lon =</span> <span class="fu">na.approx</span>(fishlon))</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(<span class="fu">exists</span>(<span class="st">'driftgps'</span>)<span class="sc">==</span>T){driftgps <span class="ot">&lt;-</span> <span class="fu">rbind</span>(driftgps, gps_approx)}</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(<span class="fu">exists</span>(<span class="st">'driftgps'</span>)<span class="sc">==</span>F){driftgps <span class="ot">&lt;-</span> gps_approx}</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>  FINAL_DATA_NAME_HERE <span class="ot">&lt;-</span> driftgps</span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>  FINAL_DATA_NAME_HERE<span class="sc">$</span>fishlat <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>  FINAL_DATA_NAME_HERE<span class="sc">$</span>fishlon <span class="ot">&lt;-</span> <span class="cn">NULL</span>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="exporting-the-final-data" class="level2">
+<h2 class="anchored" data-anchor-id="exporting-the-final-data">Exporting the final data</h2>
+<p>Now everything is done and we are ready to export the final dataset to a .csv file.</p>
+<div class="cell">
+<details>
+<summary>Exporting the Data</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(FINAL_DATA_NAME_HERE, <span class="at">file =</span> <span class="st">"FINAL_DATA_FILE_NAME_HERE.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
